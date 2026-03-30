@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>East Asia Map Quiz</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ocean: #0d1b2a;
+    --land: #1a2f1a;
+    --land-hover: #243824;
+    --border: #3a5c3a;
+    --accent: #7fff6e;
+    --accent2: #ffe97a;
+    --red: #ff4d4d;
+    --ui-bg: #0a1520;
+    --ui-card: #111e2e;
+    --ui-border: #1e3040;
+    --text: #e8f4e8;
+    --text-dim: #7a9c8a;
+    --correct: #7fff6e;
+    --wrong: #ff4d4d;
+    --target: #ffe97a;
+  }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--ui-bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--ui-card);
+    border-bottom: 1px solid var(--ui-border);
+    flex-shrink: 0;
+    gap: 16px;
+  }
+
+  .title {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  .score-block {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .score-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+  }
+  .score-item .val {
+    font-size: 1.3rem;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    color: var(--accent);
+  }
+  .score-item .lbl {
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .progress-bar-wrap {
+    flex: 1;
+    max-width: 300px;
+    height: 6px;
+    background: var(--ui-border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  #progress-bar {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.4s ease;
+    border-radius: 3px;
+  }
+
+  /* CATEGORY TABS */
+  .cat-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 8px 20px;
+    background: var(--ui-card);
+    border-bottom: 1px solid var(--ui-border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .cat-tab {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+    background: transparent;
+    color: var(--text-dim);
+    border-color: var(--ui-border);
+  }
+  .cat-tab:hover { color: var(--text); border-color: var(--text-dim); }
+  .cat-tab.active {
+    background: var(--accent);
+    color: #0a1520;
+    border-color: var(--accent);
+  }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--ui-card);
+    border-right: 1px solid var(--ui-border);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 16px;
+  }
+
+  .question-num {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .question-text {
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--text);
+    min-height: 60px;
+  }
+
+  .question-cat {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .cat-capitals { background: #1a3a5c; color: #6ec4ff; }
+  .cat-cities { background: #3a1a5c; color: #c46eff; }
+  .cat-water { background: #1a3a4c; color: #6ee8ff; }
+  .cat-physical { background: #3a2a1a; color: #ffb46e; }
+  .cat-regions { background: #1a3a2a; color: #6effc4; }
+
+  .feedback-box {
+    min-height: 60px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    border: 1px solid var(--ui-border);
+    background: var(--ui-bg);
+    color: var(--text-dim);
+    font-style: italic;
+  }
+  .feedback-box.correct { border-color: var(--correct); background: rgba(127,255,110,0.08); color: var(--correct); }
+  .feedback-box.wrong { border-color: var(--wrong); background: rgba(255,77,77,0.08); color: var(--wrong); }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+  .btn-skip {
+    background: var(--ui-border);
+    color: var(--text-dim);
+  }
+  .btn-skip:hover { background: #2a4060; color: var(--text); }
+  .btn-next {
+    background: var(--accent);
+    color: #0a1520;
+  }
+  .btn-next:hover { background: #a0ffb0; }
+  .btn-hint {
+    background: transparent;
+    border: 1px solid var(--ui-border);
+    color: var(--text-dim);
+    font-size: 0.7rem;
+  }
+  .btn-hint:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    border: 1px solid var(--text-dim);
+    border-radius: 3px;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    vertical-align: middle;
+  }
+
+  .shortcut-hint {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  /* MAP CONTAINER */
+  .map-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--ocean);
+    cursor: crosshair;
+  }
+
+  #map-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .country-path {
+    fill: var(--land);
+    stroke: var(--border);
+    stroke-width: 0.8;
+    transition: fill 0.2s;
+  }
+  .country-path.target-country {
+    fill: #1e3a1e;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+  }
+  .country-path:hover { fill: var(--land-hover); cursor: crosshair; }
+
+  /* Graticule */
+  .graticule {
+    fill: none;
+    stroke: #ffffff08;
+    stroke-width: 0.5;
+  }
+
+  /* MARKERS */
+  .marker-guess {
+    fill: var(--wrong);
+    stroke: white;
+    stroke-width: 1.5;
+    pointer-events: none;
+  }
+  .marker-correct {
+    fill: var(--correct);
+    stroke: white;
+    stroke-width: 1.5;
+    pointer-events: none;
+  }
+  .marker-target {
+    fill: none;
+    stroke: var(--target);
+    stroke-width: 2;
+    pointer-events: none;
+  }
+  .marker-target-dot {
+    fill: var(--target);
+    pointer-events: none;
+  }
+
+  .line-guess {
+    stroke: var(--target);
+    stroke-width: 1.5;
+    stroke-dasharray: 5,3;
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  .label-correct {
+    fill: white;
+    font-size: 11px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+
+  /* REGION OUTLINES */
+  .region-outline {
+    fill: rgba(110,255,196,0.06);
+    stroke: rgba(110,255,196,0.3);
+    stroke-width: 1;
+    stroke-dasharray: 4,3;
+    pointer-events: none;
+  }
+
+  /* WATER LABELS */
+  .water-label {
+    fill: #4a8aaa;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    font-style: italic;
+    pointer-events: none;
+    opacity: 0.6;
+  }
+
+  /* DISTANCE BADGE */
+  .dist-badge {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 16px;
+    background: var(--ui-card);
+    border: 1px solid var(--ui-border);
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+  }
+  .dist-badge.show { opacity: 1; }
+  .dist-badge.correct-dist { border-color: var(--correct); color: var(--correct); }
+  .dist-badge.wrong-dist { border-color: var(--wrong); }
+
+  /* GAME OVER */
+  #game-over {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(10,21,32,0.95);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 20px;
+    text-align: center;
+    z-index: 100;
+  }
+  #game-over.show { display: flex; }
+  .go-grade {
+    font-size: 5rem;
+    font-weight: 800;
+    color: var(--accent);
+  }
+  .go-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  .go-stats {
+    font-family: 'DM Mono', monospace;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+  .btn-restart {
+    padding: 12px 32px;
+    background: var(--accent);
+    color: #0a1520;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  /* LOADING */
+  #loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ui-bg);
+    z-index: 200;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .loading-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: inline-block;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse { 0%,100%{opacity:0.2;transform:scale(0.8)} 50%{opacity:1;transform:scale(1.2)} }
+  .loading-text { color: var(--text-dim); font-size: 0.8rem; letter-spacing: 0.1em; }
+
+  /* TOOLTIP */
+  .map-tooltip {
+    position: absolute;
+    background: var(--ui-card);
+    border: 1px solid var(--ui-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    color: var(--text);
+    pointer-events: none;
+    display: none;
+    z-index: 50;
+    font-family: 'DM Mono', monospace;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">🗺 East Asia Quiz</div>
+  <div class="score-block">
+    <div class="score-item">
+      <span class="val" id="score-correct">0</span>
+      <span class="lbl">Correct</span>
+    </div>
+    <div class="score-item">
+      <span class="val" id="score-total">0</span>
+      <span class="lbl">Answered</span>
+    </div>
+    <div class="score-item">
+      <span class="val" id="score-pct">—</span>
+      <span class="lbl">Accuracy</span>
+    </div>
+  </div>
+  <div class="progress-bar-wrap">
+    <div id="progress-bar"></div>
+  </div>
+</header>
+
+<div class="cat-tabs" id="cat-tabs">
+  <button class="cat-tab active" data-cat="all">All</button>
+  <button class="cat-tab" data-cat="capitals">Capitals</button>
+  <button class="cat-tab" data-cat="cities">Cities</button>
+  <button class="cat-tab" data-cat="water">Water Bodies</button>
+  <button class="cat-tab" data-cat="physical">Physical</button>
+  <button class="cat-tab" data-cat="regions">Regions</button>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="question-num" id="q-num">Question 1 of 40</div>
+    <div id="lives-display" style="display:flex;gap:4px;font-size:1rem;"></div>
+    <div>
+      <div class="question-cat" id="q-cat">Capitals</div>
+      <div class="question-text" id="q-text">Where is Beijing?</div>
+    </div>
+    <div class="feedback-box" id="feedback">Click on the map to place your answer.</div>
+    <div class="btn-row">
+      <button class="btn btn-hint" id="btn-hint">💡 Hint</button>
+      <button class="btn btn-skip" id="btn-skip">Skip</button>
+      <button class="btn btn-next" id="btn-next" style="display:none">Next →</button>
+    </div>
+    <div class="shortcut-hint"><kbd>Enter</kbd> next &nbsp; <kbd>S</kbd> skip &nbsp; <kbd>H</kbd> hint</div>
+  </div>
+
+  <div class="map-wrap" id="map-wrap">
+    <div id="loading">
+      <div>
+        <span class="loading-dot"></span>
+        <span class="loading-dot"></span>
+        <span class="loading-dot"></span>
+      </div>
+      <div class="loading-text">Loading map data...</div>
+    </div>
+    <svg id="map-svg"></svg>
+    <div class="dist-badge" id="dist-badge"></div>
+    <div class="map-tooltip" id="map-tooltip"></div>
+    <div id="game-over">
+      <div class="go-grade" id="go-grade">A</div>
+      <div class="go-title" id="go-title">Great work!</div>
+      <div class="go-stats" id="go-stats">You got 30/40 correct</div>
+      <button class="btn-restart" onclick="restartGame()">Play Again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// RIVER PATHS — arrays of [lon, lat] points drawn as lines
+// ============================================================
+const RIVER_PATHS = {
+  "Huang (Yellow) River": [
+    [96.5,35.5],[99,35.8],[102,36.5],[104,36.2],[106,35.5],[108,34.8],[110,34.9],[113,35.0],[115,35.2],[116,36.5],[118,37.5],[119,37.2],[119.2,37.5]
+  ],
+  "Chang (Yangtze) River": [
+    [91,30],[94,29.5],[97,28.5],[100,27],[102,26.5],[104,28],[106,29],[107,30],[109,30.5],[111,30],[113,29.5],[114,30],[116,30.5],[117,31],[118,31.5],[119,31.8],[121,31.5],[121.5,31.3]
+  ],
+  "Xi River": [
+    [102,24.5],[104,23.5],[106,23.8],[108,23.5],[110,23.5],[112,23],[113,23.1],[113.5,22.8]
+  ],
+  "Amur River": [
+    [120,52],[122,51],[124,50],[126,49.5],[128,48.5],[130,48],[132,47.5],[134,48],[136,48.5],[138,48],[140,46.5],[141,52.5]
+  ],
+  "Yalu River": [
+    [124.5,41.8],[125,41.5],[125.5,41.2],[126,41],[126.5,40.8],[127,40.5],[128,40],[128.2,40.1]
+  ],
+  "Tumen River": [
+    [128.2,42.5],[129,42.4],[129.5,42.3],[130,42.4],[130.5,42.5],[130.7,42.3],[130.9,42.2]
+  ],
+};
+
+// ============================================================
+// DATA — all quiz items with coordinates and metadata
+// ============================================================
+// Tolerances: capitals/cities = 120km, rivers = 100-200km along path,
+// seas = 250-400km, physical/regions = 200-350km
+const ALL_ITEMS = [
+  // CAPITALS — 150km bubble
+  { name: "Beijing", cat: "capitals", label: "Capital of China", lon: 116.4, lat: 39.9, hint: "Northern China, inland", country: "China", radius: 150 },
+  { name: "Ulaanbaatar", cat: "capitals", label: "Capital of Mongolia", lon: 106.9, lat: 47.9, hint: "Central Mongolia, near the Tuul River", country: "Mongolia", radius: 150 },
+  { name: "Moscow", cat: "capitals", label: "Capital of Russia", lon: 37.6, lat: 55.75, hint: "Far west of Russia", country: "Russia", radius: 150 },
+  { name: "Tokyo", cat: "capitals", label: "Capital of Japan", lon: 139.69, lat: 35.68, hint: "Honshu island, eastern coast", country: "Japan", radius: 150 },
+  { name: "Pyongyang", cat: "capitals", label: "Capital of North Korea", lon: 125.75, lat: 39.03, hint: "Western side of the peninsula", country: "North Korea", radius: 150 },
+  { name: "Seoul", cat: "capitals", label: "Capital of South Korea", lon: 126.97, lat: 37.56, hint: "Near the western coast", country: "South Korea", radius: 150 },
+  { name: "Taipei", cat: "capitals", label: "Capital of Taiwan", lon: 121.56, lat: 25.04, hint: "Northern Taiwan", country: "Taiwan", radius: 150 },
+
+  // CITIES — 200km bubble
+  { name: "Harbin", cat: "cities", label: "City in NE China", lon: 126.63, lat: 45.76, hint: "Northeast China (Manchuria), cold winters", country: "China", radius: 200 },
+  { name: "Xi'an", cat: "cities", label: "City in central China", lon: 108.93, lat: 34.27, hint: "Central China, near the Wei River — ancient capital", country: "China", radius: 200 },
+  { name: "Nanjing", cat: "cities", label: "City on the Yangtze", lon: 118.8, lat: 32.06, hint: "Eastern China along the Yangtze", country: "China", radius: 200 },
+  { name: "Guangzhou", cat: "cities", label: "City in southern China", lon: 113.26, lat: 23.13, hint: "Pearl River Delta, near Hong Kong", country: "China", radius: 200 },
+  { name: "Hong Kong", cat: "cities", label: "Special Administrative Region", lon: 114.17, lat: 22.32, hint: "South coast, by the South China Sea", country: "China", radius: 200 },
+  { name: "Shanghai", cat: "cities", label: "Largest city in China", lon: 121.47, lat: 31.23, hint: "Eastern coast at the Yangtze delta", country: "China", radius: 200 },
+  { name: "Tianjin", cat: "cities", label: "Port city near Beijing", lon: 117.2, lat: 39.13, hint: "Near Beijing, coastal city on the Bohai Sea", country: "China", radius: 200 },
+  { name: "Fuzhou", cat: "cities", label: "Capital of Fujian Province", lon: 119.3, lat: 26.07, hint: "Southeast coast, opposite Taiwan", country: "China", radius: 200 },
+  { name: "Macau", cat: "cities", label: "Special Administrative Region", lon: 113.55, lat: 22.2, hint: "West of Hong Kong, south coast of China", country: "China", radius: 200 },
+
+  // WATER BODIES — rivers use path scoring, seas 400km
+  { name: "Huang (Yellow) River", cat: "water", label: "River in northern China", lon: 105.0, lat: 36.0, hint: "Flows through northern China — known as 'China's Sorrow'", country: "China", radius: 150, isRiver: true },
+  { name: "Chang (Yangtze) River", cat: "water", label: "Longest river in China", lon: 107.0, lat: 30.0, hint: "Central China, flows east to the Pacific", country: "China", radius: 150, isRiver: true },
+  { name: "Xi River", cat: "water", label: "River in southern China", lon: 110.0, lat: 23.5, hint: "Southern China, flows through Guangzhou", country: "China", radius: 130, isRiver: true },
+  { name: "East China Sea", cat: "water", label: "Marginal sea of the Pacific", lon: 125.0, lat: 29.0, hint: "Between China and Japan", radius: 400 },
+  { name: "South China Sea", cat: "water", label: "Large sea south of China", lon: 115.0, lat: 15.0, hint: "South of China, west of the Philippines", radius: 400 },
+  { name: "Yellow Sea", cat: "water", label: "Sea between China and Korea", lon: 122.0, lat: 35.0, hint: "Between China and the Korean peninsula", radius: 400 },
+  { name: "Formosa Strait", cat: "water", label: "Strait between China and Taiwan", lon: 120.0, lat: 24.5, hint: "Between Fujian province and Taiwan", radius: 400 },
+  { name: "Amur River", cat: "water", label: "River on Sino-Russian border", lon: 128.0, lat: 48.5, hint: "Border between NE China and Russia", radius: 150, isRiver: true },
+  { name: "Yalu River", cat: "water", label: "River on Sino-Korean border", lon: 126.5, lat: 41.5, hint: "Border between China and North Korea", radius: 120, isRiver: true },
+  { name: "Tumen River", cat: "water", label: "River in NE Asia", lon: 130.5, lat: 42.5, hint: "Where China, North Korea, and Russia meet", radius: 100, isRiver: true },
+
+  // PHYSICAL FEATURES — 400km
+  { name: "Gobi Desert", cat: "physical", label: "Desert in N China & Mongolia", lon: 103.0, lat: 43.0, hint: "Between China and Mongolia — cold desert", radius: 400 },
+  { name: "Takla Makan Desert", cat: "physical", label: "Desert in Xinjiang", lon: 83.0, lat: 39.0, hint: "Western China — one of the world's largest sandy deserts", radius: 400 },
+  { name: "Kunlun Shan", cat: "physical", label: "Mountain range in western China", lon: 86.0, lat: 36.5, hint: "North of Tibet, running east-west", radius: 400 },
+  { name: "Altun Shan", cat: "physical", label: "Mountain range east of Kunlun", lon: 90.0, lat: 38.5, hint: "Between the Takla Makan and the Tibetan Plateau", radius: 400 },
+  { name: "Plateau of Tibet", cat: "physical", label: "World's highest plateau", lon: 89.0, lat: 33.0, hint: "Southwestern China — 'Roof of the World'", radius: 400 },
+  { name: "Himalayas", cat: "physical", label: "Mountain range on SW border", lon: 86.9, lat: 28.5, hint: "South edge of Tibet, world's highest range", radius: 400 },
+  { name: "Mt. Everest", cat: "physical", label: "World's tallest mountain", lon: 86.93, lat: 27.99, hint: "On the Nepal-Tibet border", radius: 200 },
+  { name: "Altai Shan", cat: "physical", label: "Mountains in Central Asia", lon: 90.0, lat: 49.0, hint: "Where Mongolia, Russia, and China meet", radius: 400 },
+
+  // REGIONS — 400km
+  { name: "The 'Heartland'", cat: "regions", label: "Geopolitical core of China", lon: 108.0, lat: 35.0, hint: "Central-eastern China — densely populated core", radius: 400 },
+  { name: "Xizang (Tibet)", cat: "regions", label: "Autonomous Region of China", lon: 89.0, lat: 32.0, hint: "Southwestern China — the Tibetan plateau region", radius: 400 },
+  { name: "Xinjiang", cat: "regions", label: "Autonomous Region of China", lon: 86.0, lat: 42.0, hint: "Northwestern China — largest administrative division", radius: 400 },
+  { name: "Inner Mongolia", cat: "regions", label: "Autonomous Region of China", lon: 115.0, lat: 44.0, hint: "Curves along the southern edge of Mongolia", radius: 400 },
+  { name: "Northeast (Manchuria)", cat: "regions", label: "Historical region of NE China", lon: 125.0, lat: 45.0, hint: "NE China — three provinces east of Inner Mongolia", radius: 400 },
+];
+
+// ============================================================
+// COUNTRY ID MAP (ISO numeric → name for TopoJSON)
+// ============================================================
+const COUNTRY_IDS = {
+  156: "China", 496: "Mongolia", 643: "Russia",
+  392: "Japan", 408: "North Korea", 410: "South Korea", 158: "Taiwan"
+};
+
+// Target countries to highlight on map
+const TARGET_COUNTRY_NAMES = new Set(Object.values(COUNTRY_IDS));
+
+// ============================================================
+// STATE
+// ============================================================
+let questions = [];       // current round queue
+let retryQueue = [];      // items that were missed, shown again at end
+let currentIdx = 0;
+let answered = false;
+let correctCount = 0;
+let totalAnswered = 0;
+let currentCategory = "all";
+let projection, path, svg, gMarkers, gFound;
+let hintUsed = false;
+let foundItems = [];
+let livesLeft = 3;        // attempts remaining for current question
+let isRetryRound = false; // are we in the retry pass?
+
+// ============================================================
+// SHUFFLE
+// ============================================================
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ============================================================
+// INIT MAP
+// ============================================================
+async function initMap() {
+  const wrap = document.getElementById('map-wrap');
+  const svgEl = document.getElementById('map-svg');
+  const W = wrap.clientWidth;
+  const H = wrap.clientHeight;
+
+  svg = d3.select(svgEl)
+    .attr('width', W)
+    .attr('height', H);
+
+  // Projection — centered on East Asia
+  projection = d3.geoMercator()
+    .center([105, 35])
+    .scale(Math.min(W, H) * 1.0)
+    .translate([W / 2, H / 2]);
+
+  path = d3.geoPath().projection(projection);
+
+  // Graticule
+  const graticule = d3.geoGraticule().step([10, 10]);
+  svg.append('path')
+    .datum(graticule())
+    .attr('class', 'graticule')
+    .attr('d', path);
+
+  // Load world TopoJSON
+  let world;
+  try {
+    world = await d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+  } catch(e) {
+    document.getElementById('loading').innerHTML = '<div style="color:#ff4d4d;padding:20px;text-align:center">Failed to load map data.<br>Check internet connection and reload.</div>';
+    return;
+  }
+
+  const countries = topojson.feature(world, world.objects.countries);
+
+  // Draw all countries (dim)
+  svg.append('g').attr('class', 'g-bg-countries')
+    .selectAll('path')
+    .data(countries.features)
+    .join('path')
+    .attr('class', d => {
+      const name = COUNTRY_IDS[+d.id];
+      return name ? 'country-path' : 'country-path'
+    })
+    .attr('d', path)
+    .attr('id', d => 'country-' + d.id)
+    .style('fill', d => {
+      const name = COUNTRY_IDS[+d.id];
+      return name ? 'var(--land)' : '#0f1f0f';
+    })
+    .style('stroke', d => {
+      const name = COUNTRY_IDS[+d.id];
+      return name ? 'var(--border)' : '#0f2a0f';
+    })
+    .style('stroke-width', d => COUNTRY_IDS[+d.id] ? '0.8' : '0.3');
+
+  // Marker layer — for current question's temporary markers
+  gMarkers = svg.append('g').attr('class', 'g-markers');
+
+  // Persistent found layer — correct answers stay on map across questions
+  gFound = svg.append('g').attr('class', 'g-found');
+
+  // Click handler
+  svgEl.addEventListener('click', onMapClick);
+
+  // Mouse move tooltip on countries
+  svgEl.addEventListener('mousemove', onMapHover);
+  svgEl.addEventListener('mouseleave', () => {
+    document.getElementById('map-tooltip').style.display = 'none';
+  });
+
+  document.getElementById('loading').style.display = 'none';
+  startGame();
+}
+
+function onMapHover(e) {
+  if (answered) return;
+  const tooltip = document.getElementById('map-tooltip');
+  const [mx, my] = d3.pointer(e, document.getElementById('map-svg'));
+  const coord = projection.invert([mx, my]);
+  if (!coord) { tooltip.style.display = 'none'; return; }
+  tooltip.style.left = (e.offsetX + 12) + 'px';
+  tooltip.style.top = (e.offsetY - 28) + 'px';
+  tooltip.style.display = 'block';
+  tooltip.textContent = `${coord[1].toFixed(1)}°N, ${coord[0].toFixed(1)}°E`;
+}
+
+// ============================================================
+// GAME LOGIC
+// ============================================================
+function startGame() {
+  const pool = currentCategory === 'all'
+    ? ALL_ITEMS
+    : ALL_ITEMS.filter(i => i.cat === currentCategory);
+  questions = shuffle(pool);
+  retryQueue = [];
+  currentIdx = 0;
+  correctCount = 0;
+  totalAnswered = 0;
+  foundItems = [];
+  isRetryRound = false;
+  if (gFound) gFound.selectAll('*').remove();
+  updateScoreUI();
+  document.getElementById('game-over').classList.remove('show');
+  loadQuestion();
+}
+
+function loadQuestion() {
+  if (currentIdx >= questions.length) {
+    if (retryQueue.length > 0) {
+      questions = shuffle(retryQueue);
+      retryQueue = [];
+      currentIdx = 0;
+      isRetryRound = true;
+    } else {
+      showGameOver();
+      return;
+    }
+  }
+
+  answered = false;
+  hintUsed = false;
+  livesLeft = 3;
+  const q = questions[currentIdx];
+
+  document.getElementById('q-num').textContent =
+    `Question ${currentIdx + 1} of ${questions.length}` +
+    (isRetryRound ? ' — Review Round 🔄' : retryQueue.length > 0 ? ` · ${retryQueue.length} to review` : '');
+  document.getElementById('q-text').textContent = `Where is ${q.name}?`;
+
+  const catEl = document.getElementById('q-cat');
+  catEl.textContent = q.cat.charAt(0).toUpperCase() + q.cat.slice(1);
+  catEl.className = 'question-cat cat-' + q.cat;
+
+  const fb = document.getElementById('feedback');
+  if (isRetryRound && currentIdx === 0) {
+    fb.textContent = `🔄 Review round! ${questions.length} missed — let's nail them.`;
+  } else {
+    fb.textContent = 'Click on the map to place your answer.';
+  }
+  fb.className = 'feedback-box';
+
+  document.getElementById('btn-next').style.display = 'none';
+  document.getElementById('btn-skip').style.display = '';
+  document.getElementById('btn-hint').disabled = false;
+  document.getElementById('dist-badge').classList.remove('show', 'correct-dist', 'wrong-dist');
+  renderHearts();
+
+  gMarkers.selectAll('*').remove();
+  updateProgress();
+}
+
+function renderHearts() {
+  const el = document.getElementById('lives-display');
+  if (!el) return;
+  el.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const heart = document.createElement('span');
+    heart.textContent = i < livesLeft ? '❤️' : '🖤';
+    el.appendChild(heart);
+  }
+}
+
+function highlightTargetCountry(q) {
+  d3.selectAll('.country-path').classed('target-country', false);
+}
+
+function onMapClick(e) {
+  if (answered) return;
+  const [mx, my] = d3.pointer(e, document.getElementById('map-svg'));
+  const coord = projection.invert([mx, my]);
+  if (!coord) return;
+  evaluateGuess(coord[0], coord[1], mx, my);
+}
+
+// Add a permanent marker to the found layer when answered correctly
+function addFoundMarker(q) {
+  if (q.isRiver && RIVER_PATHS[q.name]) {
+    const pts = RIVER_PATHS[q.name];
+    const lineGen = d3.line()
+      .x(d => projection(d)[0])
+      .y(d => projection(d)[1])
+      .curve(d3.curveCatmullRom);
+    gFound.append('path')
+      .datum(pts).attr('d', lineGen)
+      .style('fill', 'none').style('stroke', '#5bc8ff')
+      .style('stroke-width', '2').style('stroke-opacity', '0.6')
+      .style('pointer-events', 'none');
+    const mid = pts[Math.floor(pts.length / 2)];
+    const [mx2, my2] = projection(mid);
+    gFound.append('text')
+      .attr('x', mx2 + 5).attr('y', my2 - 5)
+      .style('fill', '#5bc8ff').style('font-size', '9px')
+      .style('font-family', "'Syne', sans-serif").style('font-weight', '600')
+      .style('pointer-events', 'none').style('opacity', '0.8')
+      .text(q.name);
+  } else {
+    const [cx, cy] = projection([q.lon, q.lat]);
+    gFound.append('circle')
+      .attr('cx', cx).attr('cy', cy).attr('r', 5)
+      .style('fill', 'var(--correct)').style('stroke', 'white')
+      .style('stroke-width', '1.5').style('pointer-events', 'none').style('opacity', '0.85');
+    gFound.append('text')
+      .attr('x', cx + 7).attr('y', cy + 4)
+      .style('fill', 'var(--correct)').style('font-size', '10px')
+      .style('font-family', "'Syne', sans-serif").style('font-weight', '700')
+      .style('pointer-events', 'none').style('opacity', '0.85')
+      .text(q.name);
+  }
+}
+
+function evaluateGuess(guessLon, guessLat, px, py) {
+  const q = questions[currentIdx];
+
+  let dist;
+  if (q.isRiver && RIVER_PATHS[q.name]) {
+    dist = distToRiverPath(guessLat, guessLon, q.name);
+  } else {
+    dist = haversine(guessLat, guessLon, q.lat, q.lon);
+  }
+
+  const tolerance = q.radius || 150;
+  const isCorrect = dist <= tolerance;
+  const distStr = dist < 100 ? `${Math.round(dist)} km` : `${Math.round(dist / 10) * 10} km`;
+
+  // Find closest known item to label what they clicked on a miss
+  let clickedName = null;
+  if (!isCorrect) {
+    let minD = Infinity;
+    ALL_ITEMS.forEach(item => {
+      const d = haversine(guessLat, guessLon, item.lat, item.lon);
+      if (d < minD && d < 300) { minD = d; clickedName = item.name; }
+    });
+  }
+
+  if (isCorrect) {
+    answered = true;
+    totalAnswered++;
+    correctCount++;
+    addFoundMarker(q);
+    updateScoreUI();
+
+    if (q.isRiver && RIVER_PATHS[q.name]) drawRiverPath(q.name, true);
+
+    gMarkers.append('circle')
+      .attr('cx', px).attr('cy', py).attr('r', 9)
+      .style('fill', 'var(--correct)').style('stroke', 'white').style('stroke-width', '2')
+      .style('pointer-events', 'none');
+
+    document.getElementById('feedback').textContent = `✅ Correct! ${q.name} — ${q.label}.`;
+    document.getElementById('feedback').className = 'feedback-box correct';
+
+    const badge = document.getElementById('dist-badge');
+    badge.textContent = '✓ Correct!';
+    badge.classList.add('show', 'correct-dist');
+
+    document.getElementById('btn-next').style.display = '';
+    document.getElementById('btn-skip').style.display = 'none';
+    document.getElementById('map-tooltip').style.display = 'none';
+
+  } else {
+    // Wrong — draw X where they clicked
+    livesLeft--;
+    renderHearts();
+
+    const marker = gMarkers.append('g').style('pointer-events', 'none');
+    marker.append('circle')
+      .attr('cx', px).attr('cy', py).attr('r', 7)
+      .style('fill', 'var(--wrong)').style('stroke', 'white').style('stroke-width', '1.5');
+    const s = 4;
+    marker.append('line').attr('x1', px-s).attr('y1', py-s).attr('x2', px+s).attr('y2', py+s)
+      .style('stroke', 'white').style('stroke-width', '2');
+    marker.append('line').attr('x1', px+s).attr('y1', py-s).attr('x2', px-s).attr('y2', py+s)
+      .style('stroke', 'white').style('stroke-width', '2');
+    if (clickedName) {
+      marker.append('text')
+        .attr('x', px + 10).attr('y', py + 4)
+        .style('fill', '#ffaaaa').style('font-size', '10px')
+        .style('font-family', "'Syne', sans-serif").style('font-weight', '600')
+        .text(clickedName);
+    }
+
+    const badge = document.getElementById('dist-badge');
+    badge.textContent = `${Math.round(dist)} km off`;
+    badge.classList.remove('correct-dist');
+    badge.classList.add('show', 'wrong-dist');
+
+    if (livesLeft <= 0) {
+      answered = true;
+      totalAnswered++;
+      if (!retryQueue.find(r => r.name === q.name)) retryQueue.push(q);
+      updateScoreUI();
+
+      if (q.isRiver && RIVER_PATHS[q.name]) {
+        drawRiverPath(q.name, false);
+      } else {
+        const [tx, ty] = projection([q.lon, q.lat]);
+        gMarkers.append('circle')
+          .attr('cx', tx).attr('cy', ty).attr('r', 9)
+          .style('fill', 'var(--target)').style('stroke', 'white').style('stroke-width', '2')
+          .style('pointer-events', 'none');
+        gMarkers.append('line')
+          .attr('x1', px).attr('y1', py).attr('x2', tx).attr('y2', ty)
+          .attr('class', 'line-guess');
+        gMarkers.append('text')
+          .attr('x', tx + 10).attr('y', ty - 8)
+          .attr('class', 'label-correct').text(q.name);
+      }
+
+      document.getElementById('feedback').innerHTML =
+        `❌ Out of tries! <strong>${q.name}</strong> shown in yellow — it'll come back.`;
+      document.getElementById('feedback').className = 'feedback-box wrong';
+      document.getElementById('btn-next').style.display = '';
+      document.getElementById('btn-skip').style.display = 'none';
+      document.getElementById('map-tooltip').style.display = 'none';
+
+    } else {
+      const tryWord = livesLeft === 1 ? '⚠️ Last try!' : `${livesLeft} tries left`;
+      document.getElementById('feedback').innerHTML =
+        `❌ ${distStr} off${clickedName ? ` — that was <strong>${clickedName}</strong>` : ''}. ${tryWord}`;
+      document.getElementById('feedback').className = 'feedback-box wrong';
+    }
+  }
+}
+
+// Draw the river path as a glowing line on the map
+function drawRiverPath(riverName, isCorrect) {
+  const pts = RIVER_PATHS[riverName];
+  if (!pts) return;
+  const color = isCorrect ? 'var(--correct)' : 'var(--target)';
+  const lineGen = d3.line()
+    .x(d => projection(d)[0])
+    .y(d => projection(d)[1])
+    .curve(d3.curveCatmullRom);
+  gMarkers.append('path')
+    .datum(pts).attr('d', lineGen)
+    .style('fill', 'none').style('stroke', color)
+    .style('stroke-width', '6').style('stroke-opacity', '0.25')
+    .style('pointer-events', 'none');
+  gMarkers.append('path')
+    .datum(pts).attr('d', lineGen)
+    .style('fill', 'none').style('stroke', color)
+    .style('stroke-width', '2.5').style('stroke-opacity', '0.9')
+    .style('pointer-events', 'none');
+}
+
+function nextQuestion() {
+  currentIdx++;
+  loadQuestion();
+}
+
+function skipQuestion() {
+  if (answered) return;
+  const q = questions[currentIdx];
+  answered = true;
+  totalAnswered++;
+
+  if (!retryQueue.find(r => r.name === q.name)) retryQueue.push(q);
+
+  if (q.isRiver && RIVER_PATHS[q.name]) {
+    drawRiverPath(q.name, false);
+  } else {
+    const [tx, ty] = projection([q.lon, q.lat]);
+    gMarkers.append('circle')
+      .attr('cx', tx).attr('cy', ty).attr('r', 8)
+      .style('fill', 'var(--target)').style('stroke', 'white').style('stroke-width', '1.5')
+      .style('pointer-events', 'none');
+    gMarkers.append('text')
+      .attr('x', tx + 10).attr('y', ty + 4)
+      .attr('class', 'label-correct').text(q.name);
+  }
+
+  document.getElementById('feedback').textContent = `⏭ Skipped — ${q.name} will come back around.`;
+  document.getElementById('feedback').className = 'feedback-box';
+  updateScoreUI();
+  document.getElementById('btn-next').style.display = '';
+  document.getElementById('btn-skip').style.display = 'none';
+}
+
+function showHint() {
+  if (hintUsed || answered) return;
+  hintUsed = true;
+  const q = questions[currentIdx];
+  const fb = document.getElementById('feedback');
+  fb.textContent = `💡 ${q.hint}`;
+  fb.className = 'feedback-box';
+  document.getElementById('btn-hint').disabled = true;
+}
+
+function showGameOver() {
+  const pct = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 0;
+  let grade = 'F', title = 'Keep practicing!';
+  if (pct >= 90) { grade = 'A+'; title = 'Geography genius!'; }
+  else if (pct >= 80) { grade = 'A'; title = 'Excellent work!'; }
+  else if (pct >= 70) { grade = 'B'; title = 'Pretty solid!'; }
+  else if (pct >= 60) { grade = 'C'; title = 'Getting there!'; }
+  else if (pct >= 50) { grade = 'D'; title = 'Needs more practice.'; }
+
+  document.getElementById('go-grade').textContent = grade;
+  document.getElementById('go-title').textContent = title;
+  document.getElementById('go-stats').textContent = `${correctCount} / ${totalAnswered} correct (${pct}%)`;
+  document.getElementById('game-over').classList.add('show');
+}
+
+function restartGame() { startGame(); }
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function updateScoreUI() {
+  document.getElementById('score-correct').textContent = correctCount;
+  document.getElementById('score-total').textContent = totalAnswered;
+  const pct = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : '—';
+  document.getElementById('score-pct').textContent = pct === '—' ? '—' : pct + '%';
+}
+
+function updateProgress() {
+  const pct = (currentIdx / questions.length) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+// ============================================================
+// MATH
+// ============================================================
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+    Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Minimum distance from a point to any segment of the river path
+function distToRiverPath(guessLat, guessLon, riverName) {
+  const pts = RIVER_PATHS[riverName];
+  if (!pts) return 9999;
+  let minDist = Infinity;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [lon1, lat1] = pts[i];
+    const [lon2, lat2] = pts[i+1];
+    // Approximate closest point on segment
+    const dx = lon2 - lon1, dy = lat2 - lat1;
+    const lenSq = dx*dx + dy*dy;
+    let t = lenSq > 0 ? ((guessLon - lon1)*dx + (guessLat - lat1)*dy) / lenSq : 0;
+    t = Math.max(0, Math.min(1, t));
+    const nearLon = lon1 + t*dx;
+    const nearLat = lat1 + t*dy;
+    const d = haversine(guessLat, guessLon, nearLat, nearLon);
+    if (d < minDist) minDist = d;
+  }
+  return minDist;
+}
+
+// ============================================================
+// KEYBOARD
+// ============================================================
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === 'ArrowRight') {
+    if (answered) nextQuestion();
+  } else if (e.key === 's' || e.key === 'S') {
+    if (!answered) skipQuestion();
+  } else if (e.key === 'h' || e.key === 'H') {
+    showHint();
+  }
+});
+
+// ============================================================
+// BUTTON EVENTS
+// ============================================================
+document.getElementById('btn-next').addEventListener('click', nextQuestion);
+document.getElementById('btn-skip').addEventListener('click', skipQuestion);
+document.getElementById('btn-hint').addEventListener('click', showHint);
+
+// Category tabs
+document.querySelectorAll('.cat-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentCategory = tab.dataset.cat;
+    startGame();
+  });
+});
+
+// ============================================================
+// RESPONSIVE RESIZE
+// ============================================================
+window.addEventListener('resize', () => {
+  const wrap = document.getElementById('map-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  projection.scale(Math.min(W, H) * 1.0).translate([W/2, H/2]);
+  document.getElementById('map-svg').setAttribute('width', W);
+  document.getElementById('map-svg').setAttribute('height', H);
+  document.querySelectorAll('.country-path').forEach(p => {
+    d3.select(p).attr('d', path);
+  });
+});
+
+// ============================================================
+// START
+// ============================================================
+initMap();
+</script>
+</body>
+</html>
